@@ -512,8 +512,18 @@ void Service::RunService(const std::optional<MountNamespace>& override_mount_nam
         _exit(EXIT_FAILURE);
     }
 
-    if (task_profiles_.size() > 0 && !SetTaskProfiles(getpid(), task_profiles_)) {
-        LOG(ERROR) << "failed to set task profiles";
+    if (task_profiles_.size() > 0) {
+        bool succeeded = SelinuxGetVendorAndroidVersion() < 33
+                                 ?
+                                 // Compatibility mode: apply the task profiles to the current
+                                 // thread.
+                                 SetTaskProfiles(getpid(), task_profiles_)
+                                 :
+                                 // Apply the task profiles to the current process.
+                                 SetProcessProfiles(getuid(), getpid(), task_profiles_);
+        if (!succeeded) {
+            LOG(ERROR) << "failed to set task profiles";
+        }
     }
 
     // As requested, set our gid, supplemental gids, uid, context, and
